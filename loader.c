@@ -19,44 +19,45 @@ void load_and_run_elf(char** exe) {
 
     if (fd == -1) {
         perror("open");
-        exit(1);  // Handle error properly
+        exit(1); 
     }
 
     if (read(fd, &ehdr, sizeof(Elf32_Ehdr)) != sizeof(Elf32_Ehdr)) {
         perror("read");
-        close(fd);  // Close the file descriptor before exiting
-        exit(1);    // Handle error properly
+        close(fd);
+        exit(1);
     }
 
     unsigned int program_header_offset = ehdr.e_phoff;
-    lseek(fd, program_header_offset, SEEK_SET);
+    unsigned int curr= lseek(fd,0,SEEK_CUR);
+    printf("File pointer is at this addess after reading header: %u \n",curr);
+    printf("This is the position of the program header:%u \n",program_header_offset);
 
     Elf32_Addr entry_point = ehdr.e_entry;
 
     for (int i = 0; i < ehdr.e_phnum; i++) {
         if (read(fd, &phdr, sizeof(Elf32_Phdr)) != sizeof(Elf32_Phdr)) {
             perror("read");
-            close(fd);  // Close the file descriptor before exiting
-            exit(1);    // Handle error properly
+            close(fd);
+            exit(1);
         }
 
         if (phdr.p_type == PT_LOAD) {
             if (entry_point >= phdr.p_vaddr && entry_point <= phdr.p_vaddr + phdr.p_memsz) {
                 void* segment_address = mmap(NULL, phdr.p_memsz, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE, fd, phdr.p_offset);
+                printf("the address of the memory location where we are loading the segment is: %ld \n",(long)segment_address);
                 if (segment_address == MAP_FAILED) {
                     perror("mmap");
-                    close(fd);  // Close the file descriptor before exiting
-                    exit(1);    // Handle error properly
+                    close(fd);
+                    exit(1);  
                 }
 
                 int (*_start)() = (int (*)())(segment_address + (entry_point - phdr.p_vaddr));
                 int result = _start();
                 printf("User _start return value = %d\n", result);
 
-                // Clean up after using mmap
                 if (munmap(segment_address, phdr.p_memsz) == -1) {
                     perror("munmap");
-                    // Handle error, but continue
                 }
 
                 break;
@@ -64,8 +65,7 @@ void load_and_run_elf(char** exe) {
         }
     }
 
-    close(fd);  // Close the file descriptor after usage
-    // Handle cleanup or other tasks after loading and running
+    close(fd);
 }
 
 int main(int argc, char** argv) {
@@ -73,11 +73,7 @@ int main(int argc, char** argv) {
         printf("Usage: %s <ELF Executable> \n", argv[0]);
         exit(1);
     }
-
-    // 1. carry out necessary checks on the input ELF file
-    // 2. passing it to the loader for carrying out the loading/execution
     load_and_run_elf(argv);
-    // 3. invoke the cleanup routine inside the loader  
     loader_cleanup();
     return 0;
 }
