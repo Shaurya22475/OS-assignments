@@ -22,11 +22,7 @@ void load_and_run_elf(char** exe) {
         exit(1); 
     }
 
-    if (read(fd, &ehdr, sizeof(Elf32_Ehdr)) != sizeof(Elf32_Ehdr)) {
-        perror("read");
-        close(fd);
-        exit(1);
-    }
+    read(fd, &ehdr, sizeof(Elf32_Ehdr));
 
     unsigned int program_header_offset = ehdr.e_phoff;
     unsigned int curr= lseek(fd,0,SEEK_CUR);
@@ -41,11 +37,10 @@ void load_and_run_elf(char** exe) {
             close(fd);
             exit(1);
         }
-
+        
         if (phdr.p_type == PT_LOAD) {
             if (entry_point >= phdr.p_vaddr && entry_point <= phdr.p_vaddr + phdr.p_memsz) {
                 void* segment_address = mmap(NULL, phdr.p_memsz, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE, fd, phdr.p_offset);
-                printf("the address of the memory location where we are loading the segment is: %ld \n",(long)segment_address);
                 if (segment_address == MAP_FAILED) {
                     perror("mmap");
                     close(fd);
