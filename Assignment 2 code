@@ -7,42 +7,48 @@
 #include <time.h>
 
 #define MAX_HISTORY_SIZE 100
+#define MAX_COMMAND_LENGTH 500
+#define MAX_WORDS 64
 
+struct timespec endTime;
+struct timespec startTime;
 typedef struct CommandHistory {
-    int commandNo;         
-    char* command;         
-    time_t startTime;       
-    time_t endTime;         
-    double duration;        
+    int commandNo;
+    char* command;
+    struct timespec startTime;
+    struct timespec endTime;
+    double duration;
+    int background; // Flag to indicate background process
 } CommandHistory;
 
 CommandHistory history[MAX_HISTORY_SIZE]; // Array to store command history
 int historySize = 0; // Number of entries in command history
 
-// Function to print the command history
+// Function to print command history
 void printHistory() {
     for (int i = 0; i < historySize; i++) {
         printf("Command No: %d\n", history[i].commandNo);
         printf("Command: %s\n", history[i].command);
-        if (history[i].startTime != 0) {
-            printf("Start Time: %s", ctime(&history[i].startTime));
-        }
-        if (history[i].endTime != 0) {
-            printf("End Time: %s", ctime(&history[i].endTime));
-            printf("Duration: %.2lf seconds\n", history[i].duration);
+        printf("Start Time: %ld.%09ld seconds\n", history[i].startTime.tv_sec, history[i].startTime.tv_nsec);
+        printf("End Time: %ld.%09ld seconds\n", history[i].endTime.tv_sec, history[i].endTime.tv_nsec);
+        printf("Duration: %.9lf seconds\n", history[i].duration);
+        if (history[i].background) {
+            printf("Background: Yes\n");
         }
         printf("\n");
     }
 }
 
-// Function to add a command to history
-void addToHistory(int commandNo, char* command,time_t startTime, time_t endTime) {
+// Function to add a command to history 
+void addToHistory(int commandNo, char* command, struct timespec startTime, struct timespec endTime, int background) {
     if (historySize < MAX_HISTORY_SIZE) {
         history[historySize].commandNo = commandNo;
         history[historySize].command = strdup(command);
         history[historySize].startTime = startTime;
         history[historySize].endTime = endTime;
-        history[historySize].duration = difftime(endTime, startTime);
+        history[historySize].duration = (endTime.tv_sec - startTime.tv_sec) +
+                  (double)(endTime.tv_nsec - startTime.tv_nsec) / 1e9;
+        history[historySize].background = background;
         historySize++;
     } else {
         fprintf(stderr, "Command history is full. Cannot add more commands.\n");
@@ -50,189 +56,186 @@ void addToHistory(int commandNo, char* command,time_t startTime, time_t endTime)
 }
 
 
-int launch (char** command,int words){
-    int count=0;
-    int pipes=0;
-    int pipe_indices[words];
-    for (int i=0;i<words;i++){
-        if (strcmp(command[i],"|")==0){
-             pipes++;
-             pipe_indices[count++]=i;
+int launch(char** command, int words, int background) {
+    // Measure start time using CLOCK_MONOTONIC
+    clock_gettime(CLOCK_MONOTONIC, &startTime);
+
+    int count = 0;
+    int pipes = 0;
+    int pipe_indices[MAX_WORDS];
+
+    for (int i = 0; i < words; i++) {
+        if (strcmp(command[i], "|") == 0) {
+            pipes++;
+            pipe_indices[count++] = i;
         }
     }
-    printf("%d",pipe_indices[1]);
-    if (pipes==0){
-        int status = fork();
-        if (status<0){
-        }
-        else if(status ==0){
-            execvp(command[0],command);
-        }
-        else{
-            int rt = wait(NULL);
-        }
-    }
- else if (pipes == 1) {
-    int fd[2];
-    pipe(fd);
-    int status = fork();
-    if (status < 0) {
-        // Handle fork error
-        perror("Fork failed");
-    } else if (status == 0) {
-        close(fd[0]); // Close the read end in the child process.
-        dup2(fd[1], STDOUT_FILENO); // Hook the write end of the pipe to stdout.
-        char* command1[15];
-        int i=0;
-        for ( i; i < words; i++) {
-            if (strcmp(command[i], "|") == 0) {
-                break;
+
+    int pipe_fd[pipes][2];
+
+    for (int i = 0; i <= pipes; i++) {
+        if (i < pipes) {
+            if (pipe(pipe_fd[i]) == -1) {
+                perror("Pipe failed");
+                exit(EXIT_FAILURE);
             }
-            command1[i] = command[i];
         }
-        command1[i] = NULL; // Null-terminate the array
-        if (execvp(command1[0], command1) == -1) {
-            perror("Execvp failed");
-            exit(EXIT_FAILURE); // Exit child process on execvp failure
-        }
-    } else {
-        // Parent process
-        wait(NULL); // Wait for the child to write
+
         int status = fork();
-        if (status==0){
-            //Child 2 to read from pipe and execute the second command
-            close(fd[1]); // Close write end
-            dup2(fd[0], STDIN_FILENO);
-            char* command2[15];
-            int index = 0;
-            for (int i = 0; i < words; i++) {
-                if (strcmp(command[i], "|") == 0) {
-                    index = i + 1;
+
+        if (status < 0) {
+            perror("Fork failed");
+            exit(EXIT_FAILURE);
+        } else if (status == 0) {
+            if (i != 0) {
+                // Redirect input from the previous pipe
+                if (dup2(pipe_fd[i - 1][0], STDIN_FILENO) == -1) {
+                    perror("Dup2 failed");
+                    exit(EXIT_FAILURE);
+                }
+                close(pipe_fd[i - 1][0]);
+                close(pipe_fd[i - 1][1]);
+            }
+
+            if (i != pipes) {
+                // Redirect output to the current pipe
+                if (dup2(pipe_fd[i][1], STDOUT_FILENO) == -1) {
+                    perror("Dup2 failed");
+                    exit(EXIT_FAILURE);
+                }
+                close(pipe_fd[i][0]);
+                close(pipe_fd[i][1]);
+            }
+
+            // Close all pipe file descriptors in the child process
+            for (int j = 0; j < pipes; j++) {
+                if (j != i) {
+                    close(pipe_fd[j][0]);
+                    close(pipe_fd[j][1]);
                 }
             }
-            for (int i = 0; i < words - index; i++) {
-                command2[i] = command[index + i];
+
+            char* command1[MAX_WORDS];
+            int start = (i == 0) ? 0 : pipe_indices[i - 1] + 1;
+            int end = (i == pipes) ? words : pipe_indices[i];
+            int j = 0;
+
+            for (int k = start; k < end; k++) {
+                command1[j++] = command[k];
             }
-            command2[words - index] = NULL; // Null-terminate the array
-            if (execvp(command2[0], command2) == -1) {
-                perror("Execvp failed");
-                exit(EXIT_FAILURE); // Exit child process on execvp failure
-        }
-     }
-     else{
-    }
-    }
-    }
-    else if (pipes == 2){
-        char *command1[15];
-        char *command2[15];
-        char *command3[15];
+            command1[j] = NULL;
 
-        for (int i = 0; i < pipe_indices[0]; i++) {
-            command1[i] = command[i];
-        }
-        command1[pipe_indices[0]] = NULL;
-        int index = pipe_indices[0] + 1;
-        for (int i = pipe_indices[0] + 1; i < pipe_indices[1]; i++) {
-            command2[i - pipe_indices[0] - 1] = command[i];
-        }
-        command2[pipe_indices[1] - pipe_indices[0] - 1] = NULL;
-        for (int i = pipe_indices[1] + 1; i < words; i++) {
-            command3[i - pipe_indices[1] - 1] = command[i];
-        }
-        command3[words - pipe_indices[1] - 1] = NULL;
+            execvp(command1[0], command1);
+            perror("Execvp failed");
+            exit(EXIT_FAILURE);
+        } else {
+            // Close pipe file descriptors in the parent
+            if (i != 0) {
+                close(pipe_fd[i - 1][0]);
+                close(pipe_fd[i - 1][1]);
+            }
 
-    int pipe1[2], pipe2[2];
-    if (pipe(pipe1) == -1) {
-    perror("bad pipe1");
-    exit(1);
+            if (!background) {
+                int status2;
+                waitpid(status, &status2, 0);
+            }
+        }    
     }
-
-    int pid1 = fork();
-    if (pid1 == -1) {
-        perror("fork");
-        exit(EXIT_FAILURE);
-    } else if (pid1 == 0) {
-        // Child 1: cat helloworld.c        
-        dup2(pipe1[1], STDOUT_FILENO);
-        close(pipe1[0]);
-        close(pipe1[1]);
-        execvp(command1[0],command1);
-        perror("exec cat");
-        _exit(EXIT_FAILURE);
-    }
-    int rt = wait(NULL);
-    if (pipe(pipe2) == -1) {
-    perror("bad pipe2");
-    exit(1);
-  }
-    int pid2 = fork();
-    if (pid2 == -1) {
-        perror("fork");
-        exit(EXIT_FAILURE);
-    } else if (pid2 == 0) {
-        // Child 2: grep print
-        dup2(pipe1[0], STDIN_FILENO);
-        dup2(pipe2[1], STDOUT_FILENO);
-        close(pipe1[0]);
-        close(pipe1[1]);
-        close(pipe2[0]);
-        close(pipe2[1]);
-        execvp(command2[0],command2);
-        perror("exec grep");
-        _exit(EXIT_FAILURE);
-    }
-    int pid3 = fork();
-
-    if (pid3==0){
-        close(pipe1[0]);
-        close(pipe1[1]);
-        dup2(pipe2[0], STDIN_FILENO);
-        close(pipe2[1]);
-        close(pipe2[0]);
-        execvp(command3[0],command3);
-        perror("exec wc");
-        _exit(EXIT_FAILURE);
-    }
-
-    }
+    // Measure end time using CLOCK_MONOTONIC
+    clock_gettime(CLOCK_MONOTONIC, &endTime);
 }
 
-int main() {
+
+int main(int argc, char* argv[]) {
     int commandno = 1;
-    do {
-        char* argv[100];
-        char command[500];
-        char commandcopy[500];
-        int argc = 0; // Reset argc for each iteration
-        int count = 0; // Reset count for each iteration
+    // if (argc == 3 && strcmp(argv[1], "-f") == 0) {
+    //     // Open and execute the script file
+    //     FILE* script_file = fopen(argv[2], "r");
+    //     if (script_file == NULL) {
+    //         perror("Error opening script file");
+    //         exit(EXIT_FAILURE);
+    //     }
 
-        printf("shaurya@22475:~");
-        if (fgets(command, 500, stdin) == NULL) {
-            // Exit the loop on EOF
-            printf("EOF happend!");
-            fflush(stdout);
-            break;
-        }
-        printf("Command is: %s",command);
-        strcpy(commandcopy,command);
-        if (strcmp(command,"History\n")==0){
-            printHistory();
-            continue;
-        }
+    //     char script_command[MAX_COMMAND_LENGTH];
+    //     while (fgets(script_command, sizeof(script_command), script_file) != NULL) {
+    //         // Remove carriage return characters, if any
+    //         size_t length = strlen(script_command);
+    //         if (length > 0 && script_command[length - 1] == '\n') {
+    //             printf("%s", script_command);
+    //             script_command[length - 1] = '\0'; // Replace newline with null terminator
+    //         }
+    //         printf("%s", script_command);
+    //         // Process and execute script_command just like user input
+    //         char* command_copy = strdup(script_command);
+    //         printf("%s", command_copy);
+    //         // Check if the command should run in the background
+    //         int background = 0;
+    //         if (script_command[strlen(script_command) - 2] == '&') {
+    //             background = 1;
+    //             script_command[strlen(script_command) - 2] = '\0'; // Remove '&' from the command
+    //         }
 
-        char* word = strtok(command, " \t\n");
-        while (word != NULL) {
-            argv[count] = word;
-            count++;
-            argc++;
-            word = strtok(NULL, " \t\n");
-        }
-        argv[argc] = NULL; 
-        time_t startTime = time(NULL);
-        launch(argv, argc);
-        time_t endTime = time(NULL);
-        addToHistory(commandno,commandcopy,startTime,endTime);
-        commandno++;
-    } while (1);
+    //         char* word;
+    //         char* argv[100];
+    //         int argc = 0;
+    //         int count = 0;
+
+    //         word = strtok(script_command, " \t\n");
+    //         while (word != NULL) {
+    //             argv[count] = word;
+    //             count++;
+    //             argc++;
+    //             word = strtok(NULL, " \t\n");
+    //         }
+    //         argv[argc] = NULL;
+    //         launch(argv, argc, background);
+    //         addToHistory(commandno, command_copy, startTime, endTime, background);
+    //         commandno++;
+    //     }
+
+    //     fclose(script_file);
+    //     exit(EXIT_SUCCESS);
+    // } else {
+        do {
+            char* argv[100];
+            char command[MAX_COMMAND_LENGTH];
+            char command_copy[MAX_COMMAND_LENGTH];
+            int argc = 0;
+            int count = 0;
+
+            printf("shaurya@22475:~");
+            if (fgets(command, MAX_COMMAND_LENGTH, stdin) == NULL) {
+                printf("EOF happened!");
+                fflush(stdout);
+                break;
+            }
+
+            strcpy(command_copy, command);
+            if (strcmp(command, "History\n") == 0) {
+                printHistory();
+                continue;
+            }
+
+            // Check if the command should run in the background
+            int background = 0;
+            if (command[strlen(command) - 2] == '&') {
+                background = 1;
+                command[strlen(command) - 2] = '\0';
+            }
+
+            char* word = strtok(command, " \t\n");
+            while (word != NULL) {
+                argv[count] = word;
+                count++;
+                argc++;
+                word = strtok(NULL, " \t\n");
+            }
+            argv[argc] = NULL;
+            launch(argv, argc, background);
+            addToHistory(commandno, command_copy, startTime, endTime, background);
+            commandno++;
+        } while (1);
+    // }
+
+    return 0;
 }
