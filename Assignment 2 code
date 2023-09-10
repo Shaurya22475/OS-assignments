@@ -60,22 +60,23 @@ int launch(char** command, int words, int background) {
     // Measure start time using CLOCK_MONOTONIC
     clock_gettime(CLOCK_MONOTONIC, &startTime);
 
-    int count = 0;
     int pipes = 0;
     int pipe_indices[MAX_WORDS];
 
     for (int i = 0; i < words; i++) {
         if (strcmp(command[i], "|") == 0) {
             pipes++;
-            pipe_indices[count++] = i;
+            pipe_indices[pipes - 1] = i;
         }
     }
 
-    int pipe_fd[pipes][2];
+    int prev_pipe_read = -1; // File descriptor to read from the previous command
 
     for (int i = 0; i <= pipes; i++) {
+        int pipe_fd[2];
+
         if (i < pipes) {
-            if (pipe(pipe_fd[i]) == -1) {
+            if (pipe(pipe_fd) == -1) {
                 perror("Pipe failed");
                 exit(EXIT_FAILURE);
             }
@@ -87,37 +88,37 @@ int launch(char** command, int words, int background) {
             perror("Fork failed");
             exit(EXIT_FAILURE);
         } else if (status == 0) {
+            // Child process
             if (i != 0) {
                 // Redirect input from the previous pipe
-                if (dup2(pipe_fd[i - 1][0], STDIN_FILENO) == -1) {
+                if (dup2(prev_pipe_read, STDIN_FILENO) == -1) {
                     perror("Dup2 failed");
                     exit(EXIT_FAILURE);
                 }
-                close(pipe_fd[i - 1][0]);
-                close(pipe_fd[i - 1][1]);
+                close(prev_pipe_read);
             }
 
             if (i != pipes) {
                 // Redirect output to the current pipe
-                if (dup2(pipe_fd[i][1], STDOUT_FILENO) == -1) {
+                if (dup2(pipe_fd[1], STDOUT_FILENO) == -1) {
                     perror("Dup2 failed");
                     exit(EXIT_FAILURE);
                 }
-                close(pipe_fd[i][0]);
-                close(pipe_fd[i][1]);
+                close(pipe_fd[0]);
+                close(pipe_fd[1]);
             }
 
             // Close all pipe file descriptors in the child process
             for (int j = 0; j < pipes; j++) {
                 if (j != i) {
-                    close(pipe_fd[j][0]);
-                    close(pipe_fd[j][1]);
+                    close(pipe_fd[j]);
                 }
             }
 
-            char* command1[MAX_WORDS];
             int start = (i == 0) ? 0 : pipe_indices[i - 1] + 1;
             int end = (i == pipes) ? words : pipe_indices[i];
+            
+            char* command1[MAX_WORDS];
             int j = 0;
 
             for (int k = start; k < end; k++) {
@@ -129,18 +130,23 @@ int launch(char** command, int words, int background) {
             perror("Execvp failed");
             exit(EXIT_FAILURE);
         } else {
-            // Close pipe file descriptors in the parent
-            if (i != 0) {
-                close(pipe_fd[i - 1][0]);
-                close(pipe_fd[i - 1][1]);
+            // Parent process
+            if (prev_pipe_read != -1) {
+                close(prev_pipe_read); // Close the read end of the previous pipe
+            }
+
+            if (i != pipes) {
+                close(pipe_fd[1]); // Close the write end of the current pipe
+                prev_pipe_read = pipe_fd[0]; // Set the read end of the current pipe as the previous
             }
 
             if (!background) {
                 int status2;
                 waitpid(status, &status2, 0);
             }
-        }    
+        }
     }
+
     // Measure end time using CLOCK_MONOTONIC
     clock_gettime(CLOCK_MONOTONIC, &endTime);
 }
@@ -155,7 +161,7 @@ int main(int argc, char* argv[]) {
             int argc = 0;
             int count = 0;
 
-            printf("enter command:~ ");
+            printf("enter command:~");
             if (fgets(command, MAX_COMMAND_LENGTH, stdin) == NULL) {
                 printf("EOF happened!");
                 fflush(stdout);
@@ -187,6 +193,5 @@ int main(int argc, char* argv[]) {
             addToHistory(commandno, command_copy, startTime, endTime, background);
             commandno++;
         } while (1);
-
     return 0;
 }
