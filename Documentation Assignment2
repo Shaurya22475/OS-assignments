@@ -17,7 +17,7 @@ Our addToHistory function is responsible for adding a command and its associated
 Lines 57-146:
 We've implemented the launch function to execute commands and handle pipes if they are present. It can manage commands with pipes by creating child processes for each command in the pipeline and connecting them with pipes. Additionally, we measure the start and end times of command execution using clock_gettime.
 
-Lines 147-192:
+Lines 153-197:
 The main function serves as the entry point of our program.
 Within a loop, we continuously prompt the user for commands.
 User input is read into the command variable.
