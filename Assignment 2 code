@@ -148,54 +148,6 @@ int launch(char** command, int words, int background) {
 
 int main(int argc, char* argv[]) {
     int commandno = 1;
-    // if (argc == 3 && strcmp(argv[1], "-f") == 0) {
-    //     // Open and execute the script file
-    //     FILE* script_file = fopen(argv[2], "r");
-    //     if (script_file == NULL) {
-    //         perror("Error opening script file");
-    //         exit(EXIT_FAILURE);
-    //     }
-
-    //     char script_command[MAX_COMMAND_LENGTH];
-    //     while (fgets(script_command, sizeof(script_command), script_file) != NULL) {
-    //         // Remove carriage return characters, if any
-    //         size_t length = strlen(script_command);
-    //         if (length > 0 && script_command[length - 1] == '\n') {
-    //             printf("%s", script_command);
-    //             script_command[length - 1] = '\0'; // Replace newline with null terminator
-    //         }
-    //         printf("%s", script_command);
-    //         // Process and execute script_command just like user input
-    //         char* command_copy = strdup(script_command);
-    //         printf("%s", command_copy);
-    //         // Check if the command should run in the background
-    //         int background = 0;
-    //         if (script_command[strlen(script_command) - 2] == '&') {
-    //             background = 1;
-    //             script_command[strlen(script_command) - 2] = '\0'; // Remove '&' from the command
-    //         }
-
-    //         char* word;
-    //         char* argv[100];
-    //         int argc = 0;
-    //         int count = 0;
-
-    //         word = strtok(script_command, " \t\n");
-    //         while (word != NULL) {
-    //             argv[count] = word;
-    //             count++;
-    //             argc++;
-    //             word = strtok(NULL, " \t\n");
-    //         }
-    //         argv[argc] = NULL;
-    //         launch(argv, argc, background);
-    //         addToHistory(commandno, command_copy, startTime, endTime, background);
-    //         commandno++;
-    //     }
-
-    //     fclose(script_file);
-    //     exit(EXIT_SUCCESS);
-    // } else {
         do {
             char* argv[100];
             char command[MAX_COMMAND_LENGTH];
@@ -203,7 +155,7 @@ int main(int argc, char* argv[]) {
             int argc = 0;
             int count = 0;
 
-            printf("shaurya@22475:~");
+            printf("enter command:~ ");
             if (fgets(command, MAX_COMMAND_LENGTH, stdin) == NULL) {
                 printf("EOF happened!");
                 fflush(stdout);
@@ -235,7 +187,6 @@ int main(int argc, char* argv[]) {
             addToHistory(commandno, command_copy, startTime, endTime, background);
             commandno++;
         } while (1);
-    // }
 
     return 0;
 }
