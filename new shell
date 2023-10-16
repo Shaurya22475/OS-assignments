@@ -129,8 +129,20 @@ int launch(char** command, int words, int background) {
     if (strcmp(command[0],"Submit")==0){
         ProcessInfo process;
         clock_gettime(CLOCK_MONOTONIC, &process.startTime);
+         
+        int length = 0;
+
+        while (command[length] != NULL) {
+            length++;
+        }
+        printf("length: %d",length);
         process.command=strdup(command[1]);
-       
+        int priority=1;
+        if (length==3){
+           priority = atoi(command[2]);
+           printf("command[2]: %d",atoi(command[2]));
+        }
+
         printf("Atleast in!!");
         char *command_i[]={command[1],NULL};
         int pid = fork();
@@ -145,11 +157,10 @@ int launch(char** command, int words, int background) {
         //send signal to scheduler to add this newly created process to the ready queue.
         process.pid=pid;
         arr[count_processhistory]=process;
-        printf("At index 0: process has command: %s\n",arr[count_processhistory].command);
-        printf("At index:%d I have process %s %s with pid: %d\n",count_processhistory,arr[count_processhistory].command,command[1],arr[count_processhistory].pid);
+        printf("Priority of process %d in shell is %d",pid,priority);
         count_processhistory++;
         union sigval value;
-        value.sival_int = (int)pid;
+        value.sival_int = (int)(pid*priority);
         sigqueue(scheduler,SIGUSR1, value);
         return 0;
     }
