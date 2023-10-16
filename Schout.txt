@@ -1,0 +1,46 @@
+./myshell 2 20
+27822: scheduler pidenter command:~Submit ls 1
+Submit ls
+length: 3command[2]: 1Atleast in!!Priority of process 27823 in shell is 1enter command:~Pidtimesprority from shell: 27823The scheduler pid: 27822Process with pid:27823 has priority 1
+Submit pwd 2
+Submit pwd
+length: 3command[2]: 2Atleast in!!Priority of process 27824 in shell is 2enter command:~Pidtimesprority from shell: 55648The scheduler pid: 27822Process with pid:27824 has priority 2
+Submit ./helloworld 4
+Submit ./helloworld
+length: 3command[2]: 4Atleast in!!Priority of process 27825 in shell is 4enter command:~Pidtimesprority from shell: 111300The scheduler pid: 27822Process with pid:27825 has priority 4
+Scheduled process with PID 27825
+Scheduled process with PID 27824
+Hello World!/home/flameblazer/Documents/SimpleShell
+Sigchild is actually being sent to the shell.c !
+Execution,time: 4.002090Starttime:51800
+Endtime:51804
+ARFREE BHAI MUJHE BHI LO!
+Process 27825 termination signal has been caught!Process with PID 27825 has terminated.
+Sigchild is actually being sent to the shell.c !
+Execution,time: 11.857446Starttime:51792
+Endtime:51804
+ARFREE BHAI MUJHE BHI LO!
+Process 27824 termination signal has been caught!Process with PID 27824 has terminated.
+Stopped process with PID 27825
+Stopped process with PID 27824
+Scheduled process with PID 27823
+a.c  Documentation_A2.txt  fib.c       helloworld.c  myshell  priority.c   scheduler.h	sigaction
+b.c  fib		   helloworld  hey	     new.txt  scheduler.c  shell.c	sigaction.c
+Sigchild is actually being sent to the shell.c !
+Execution,time: 34.746011Starttime:51789
+Endtime:51823
+ARFREE BHAI MUJHE BHI LO!
+Process 27823 termination signal has been caught!Process with PID 27823 has terminated.
+Stopped process with PID 27823
+^C27823 27824**History**
+Value of i: 0,Command: ls
+Pid: 27823
+Executiontime: 34.746011304
+27823 27824**History**
+Value of i: 1,Command: pwd
+Pid: 27824
+Executiontime: 11.857446076
+27823 27824**History**
+Value of i: 2,Command: ./helloworld
+Pid: 27825
+Executiontime: 4.002089913
