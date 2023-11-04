@@ -16,42 +16,53 @@ void loader_cleanup() {
  * Load and run the ELF executable file
  */
 
-void sigsegv_handler(int signo, siginfo_t *info, void *context){
-
-    if (signo == SIGSEGV){
+void sigsegv_handler(int signo, siginfo_t *info, void *context) {
+    if (signo == SIGSEGV) {
         Elf32_Addr faulting_address = (Elf32_Addr)info->si_addr;
         page_faults++;
+
         for (int i = 0; i < ehdr.e_phnum; i++) {
-        if (read(fd, &phdr, sizeof(Elf32_Phdr)) != sizeof(Elf32_Phdr)) {
-            perror("read");
-            printf("hey\n");
-            close(fd);
-            exit(1);
-        }
-        int internal_segmentation=0;
-        if (faulting_address >= phdr.p_vaddr && faulting_address <= phdr.p_vaddr + phdr.p_memsz){
-            printf("Faulting address: %u, segment address: %u %u\n",faulting_address,phdr.p_vaddr,phdr.p_vaddr+phdr.p_memsz);
-            size_t page_size = 4096;
-            void* segment_address = mmap((void * )faulting_address, page_size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE|MAP_FIXED, fd, phdr.p_offset);
-            if (phdr.p_vaddr+phdr.p_memsz>= faulting_address+page_size){
-                internal_segmentation=0;
+            if (read(fd, &phdr, sizeof(Elf32_Phdr)) != sizeof(Elf32_Phdr)) {
+                perror("read");
+                printf("hey\n");
+                close(fd);
+                exit(1);
             }
-            else{
-                internal_segmentation=(int)(faulting_address+page_size)-((int)(phdr.p_vaddr+phdr.p_memsz));
-            }
-             if (segment_address == MAP_FAILED) {
-                    perror("mmap");
-                    printf("hey\n");
-                    close(fd);
-                    exit(1);
+
+            if (faulting_address >= phdr.p_vaddr && faulting_address <= phdr.p_vaddr + phdr.p_memsz) {
+                printf("Faulting address: %u, segment address: %u %u\n", faulting_address, phdr.p_vaddr, phdr.p_vaddr + phdr.p_memsz);
+
+                size_t page_size = 4096;
+                size_t segment_size = phdr.p_memsz;
+                size_t num_pages = (segment_size + page_size - 1) / page_size;
+
+                for (int page = 0; page < num_pages; page++) {
+                    Elf32_Addr page_start = phdr.p_vaddr + page * page_size;
+                    Elf32_Addr page_end = page_start + page_size;
+
+                    if (faulting_address >= page_start && faulting_address < page_end) {
+
+                        // Map the specific page
+                        void *segment_address = mmap((void *)page_start, page_size, PROT_READ | PROT_WRITE | PROT_EXEC, MAP_PRIVATE | MAP_FIXED, fd, phdr.p_offset);
+                        if (segment_address == MAP_FAILED) {
+                            perror("mmap");
+                            printf("hey\n");
+                            close(fd);
+                            exit(1);
+                        }
+                        if (page==num_pages-1){
+                            if (page_end>=phdr.p_vaddr+phdr.p_memsz){
+                                total_internal_segmentation+= (int)(page_end)-(int)(phdr.p_vaddr+phdr.p_memsz);
+                            }
+                        }
+                        break;
+                    }
                 }
-            total_internal_segmentation+=internal_segmentation;
-            break;
+            }
         }
-      }
-      lseek(fd,ehdr.e_phoff,SEEK_SET);
-      printf("EXITINIG OUT AFTER ALLOCATING:\n");
-   } 
+        lseek(fd, ehdr.e_phoff, SEEK_SET);
+        printf("EXITING OUT AFTER ALLOCATING:\n");
+    }
 }
 
 void load_and_run_elf(char** exe) {
