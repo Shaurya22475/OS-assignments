@@ -1,0 +1,39 @@
+Contribution: Both members contributed equally.
+
+Github repository link: https://github.com/Shaurya22475/OS-assignments
+
+For the smartloader, the the program typecasts and runs the entry point address, but because it is not mapped in memory, we get a segmentation fault. We find
+the address whose access led to the segmentation fault. Then we iterate through the program headers to find which segment contains that address.
+We find the number of pages in that segment and iterate through it's pages to find the page which will contain the faulting address.
+We allocate memory for this page in process address space. Then we load the contents of this page from the executable into the allocated memory in the process address space. This is done each time
+a access is made to an unallocated memory. Thus we achieve lazy allocation of pages.
+
+Below are details of each function: 
+
+sigsegv_handler Function:
+==========================
+The sigsegv_handler function serves as a signal handler for SIGSEGV (segmentation fault) signals. When a segmentation fault occurs, it performs the following tasks:
+- It examines the faulting address to identify which segment caused the fault.
+- It counts the number of page faults that have occurred.
+- It attempts to map the specific page responsible for the fault back into memory using mmap.
+- The function also calculates and keeps track of the total internal segmentation if the fault occurs beyond the last segment page.
+- The function is attached to the SIGSEGV signal using sigaction.
+
+load_and_run_elf Function:
+===========================
+The load_and_run_elf function is responsible for loading and running an ELF executable file specified by the exe parameter. It carries out the following steps:
+- Sets up a signal handler for SIGSEGV to handle segmentation faults using sigaction.
+- Opens the ELF file for reading and stores the file descriptor in the fd variable.
+- Reads the ELF header (ehdr) into memory to extract essential information about the executable.
+- Retrieves the entry point address from the ELF header and executes it as a function, which is expected to be the _start function.
+- After executing the ELF program, it prints the result of the _start function, representing the return value of the loaded ELF program.
+
+main Function:
+===============
+The main function is the entry point of the program and performs the following tasks:
+
+- It checks if the program is provided with the correct number of command-line arguments. It expects two arguments: the program name and the path to the ELF executable file.
+- Calls the load_and_run_elf function, passing the specified ELF file as an argument.
+- After running the ELF program, it prints the total number of page faults that occurred during execution.
+- It also prints the total number of page allocations carried out, which is expected to be the same as the number of page faults in this code.
+- Finally, it prints the total internal segmentation, which provides information about the memory allocation and deallocation occurring during the execution of the ELF file.
