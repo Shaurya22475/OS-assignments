@@ -72,7 +72,6 @@ void parallel_for(int low, int high, std::function<void(int)> &&lambda, int numT
     int chunkSize = (high - low) / numThreads;
     int remainder = (high - low) % numThreads;
 
-    
     for (int i = 0; i < numThreads; i++) {
         args[i].start = i * chunkSize;
         if (i==(numThreads-1)){
@@ -81,7 +80,7 @@ void parallel_for(int low, int high, std::function<void(int)> &&lambda, int numT
         else{
           args[i].end = (i + 1) * chunkSize;
         }
-        args[i].func = (&lambda);//&lambdaArray[i];  // Pass the address of the i-th element
+        args[i].func = (&lambda);
 
         pthread_create(&tid[i], NULL, thread_func, static_cast<void*>(&args[i]));
     }
@@ -89,7 +88,6 @@ void parallel_for(int low, int high, std::function<void(int)> &&lambda, int numT
     for (int i = 0; i < numThreads; i++) {
         pthread_join(tid[i], NULL);
     }
-
      auto end_time = std::chrono::high_resolution_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
   printf("Time taken in parallelfor1: %lld miliseconds\n", static_cast<long long>(duration.count())/1000);
