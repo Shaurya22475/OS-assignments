@@ -1,0 +1,15 @@
+Contribution: Both members contributed equally
+Github repo link: https://github.com/Shaurya22475/OS-assignments
+
+To use the multithreader, use the make command to compile the files then run the matrix or vector files along with 
+number of threads and the size of your data.(For vector it is just array size, the matrix is size*size)
+
+The implementation for both the parallel_for functions is in the simple-multithreader.h header file.
+
+For vector.cpp I have maintained a struct with start, end and the lambda func to execute as the attributes. I have also 
+defined a thread_func function which applies the lambda function provided to the start and end indices. The parallel for calculates the 
+chunk size based on the number of threads given and for each thread it calculates the start and end indices sets the lamda func to the provided one and then
+calls a thread to execute the provided lambda on the start and end indices. We then wait for the threads to finish execution.
+
+For matrix.cpp the implementation is pretty similar, with a few changes in the struct to take in the different lambda function. 
+It also chunks up the rows and each thread goes through a particular chunk of rows (and all columns) applying the given lambda function to them.
