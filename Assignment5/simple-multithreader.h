@@ -72,16 +72,7 @@ void parallel_for(int low, int high, std::function<void(int)> &&lambda, int numT
     int chunkSize = (high - low) / numThreads;
     int remainder = (high - low) % numThreads;
 
-    // Allocate an array of std::functions dynamically
-    //std::function<void(int)>* lambdaArray = new std::function<void(int)>[numThreads];
-
     
-
-    // Copy the lambda to each element of the array
-    // for (int i = 0; i < numThreads; i++) {
-    //     lambdaArray[i] = lambda;
-    // }
-
     for (int i = 0; i < numThreads; i++) {
         args[i].start = i * chunkSize;
         if (i==(numThreads-1)){
@@ -99,8 +90,6 @@ void parallel_for(int low, int high, std::function<void(int)> &&lambda, int numT
         pthread_join(tid[i], NULL);
     }
 
-    // Don't forget to clean up the dynamically allocated array
-    //delete[] lambdaArray;
      auto end_time = std::chrono::high_resolution_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end_time - start_time);
   printf("Time taken in parallelfor1: %lld miliseconds\n", static_cast<long long>(duration.count())/1000);
